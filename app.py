@@ -1,8 +1,13 @@
 from flask import Flask, request, jsonify
+from flask_restx import Resource, Api
 import mariadb
 
 app = Flask(__name__)
+api = Api(app)
 app.debug = True
+
+todos = "SELECT email,user_name from drcms.`user` where id = {};"
+count = 1
 
 def get_conn():
     conn = mariadb.connect(
@@ -14,100 +19,74 @@ def get_conn():
     )
     return conn
 
-@app.route('/')
-def hello_world():
-    return 'Hello World!'
+
+@api.route('/todos')
+class TodoPost(Resource):
+    def get(self):
+        dictResult: dict = dict()
+
+        sql = "select id,email,user_name from user;"
+
+        try:
+            conn = get_conn()
+            cur = conn.cursor()
+            cur.execute(sql)
+            user = cur.fetchall()
+
+            dictResult = [dict(zip([key[0] for key in cur.description], row)) for row in user]
+
+        except Exception as e:
+            print(e)
+
+        return jsonify(dictResult)
+
+    def post(self):
+        global count
+        global todos
+
+        sql = f"INSERT INTO drcms.user (email, password, user_name, grade, created_at, updated_at)" \
+              f"VALUES ('test{count}@test.com', '1234', 'tester{count}', '9', now(), now())"
+
+        try:
+            conn = get_conn()
+            cur = conn.cursor()
+            cur.execute(sql)
+            conn.commit()
+
+        except Exception as e:
+            print(e)
+
+        idx = count
+        count += 10
+        todos[idx] = request.json.get('data')
+
+        return {
+            'id': idx,
+            'data': todos[idx]
+        }
 
 
-@app.route("/user", methods=['GET'])
-def user():
-    dictResult : dict = dict()
+@api.route('/todos/<int:todo_id>')
+class TodoSimple(Resource):
+    def get(self, todo_id):
+        return {
+            'todo_id': todo_id,
+            'data': todos[todo_id]
+        }
 
-    sql = "select id,email,user_name from user;"
+    def put(self, todo_id):
+        todos[todo_id] = request.json.get('data')
+        return {
+            'todo_id': todo_id,
+            'data': todos[todo_id]
+        }
 
-    try:
-        conn = get_conn()
-        cur = conn.cursor()
-        cur.execute(sql)
-        user = cur.fetchall()
-
-        dictResult = [dict(zip([key[0] for key in cur.description], row)) for row in user]
-
-    except Exception as e:
-        print(e)
-
-    return jsonify(dictResult)
-
-
-@app.route("/user/<int:user_id>", methods=['GET'])
-def user_read(user_id):
-    dictResult: dict = dict()
-    userid = user_id
-    sql = f"select * from user where id={userid}"
-
-    try:
-        conn = get_conn()
-        cur = conn.cursor()
-        cur.execute(sql)
-        user = cur.fetchall()
-
-        dictResult = [dict(zip([key[0] for key in cur.description], row)) for row in user]
-
-    except Exception as e:
-        print(e)
-
-    return jsonify(dictResult)
+    def delete(self, todo_id):
+        del todos[todo_id]
+        return {
+            "delete": "success"
+        }
 
 
-@app.route("/user/<int:user_id>", methods=['POST'])
-def user_create(user_id):
-    userid = user_id
-    sql = f"INSERT INTO drcms.user (email, password, user_name, grade, created_at, updated_at)" \
-          f"VALUES ('test{userid}@test.com', '1234', 'tester{userid}', '9', now(), now())"
-
-    try:
-        conn = get_conn()
-        cur = conn.cursor()
-        cur.execute(sql)
-        conn.commit()
-
-    except Exception as e:
-        print(e)
-
-    return f"tester{userid} 아이디로 생성 성공 !!!"
-
-
-@app.route("/user/<int:user_id>", methods=['DELETE'])
-def user_delete(user_id):
-    userid = user_id
-    sql = f"delete from user where id={userid}"
-
-    try:
-        conn = get_conn()
-        cur = conn.cursor()
-        cur.execute(sql)
-        conn.commit()
-
-    except Exception as e:
-        print(e)
-
-    return f"Id {userid} 번 아이디 삭제 성공 !!!"
-
-
-@app.route("/user/update/<int:user_id>", methods=['PUT'])
-def user_update(user_id):
-    userid = user_id
-    sql = f"update drcms.user set user_name = 'testupdate' where id={userid}"
-
-    try:
-        conn = get_conn()
-        cur = conn.cursor()
-        cur.execute(sql)
-        conn.commit()
-
-    except Exception as e:
-        print(e)
-
-    return f"Id {userid} 번 아이디 변경 성공 !!!"
-if __name__ == '__main__':
+if __name__ == "__main__":
     app.run()
