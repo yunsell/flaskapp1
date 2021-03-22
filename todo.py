@@ -1,12 +1,23 @@
 from flask import Flask, request, jsonify
 from flask_restx import Resource, Api
+import mariadb
 
 app = Flask(__name__)
 api = Api(app)
+app.debug = True
 
 todos = {}
 count = 1
 
+def get_conn():
+    conn = mariadb.connect(
+        user="drsong",
+        password="drs12#",
+        host="192.168.0.99",
+        port=3306,
+        database="drcms"
+    )
+    return conn
 
 @api.route('/todos')
 class TodoPost(Resource):
@@ -50,4 +61,4 @@ class TodoSimple(Resource):
 
 
 if __name__ == "__main__":
-    app.run(debug=True, host='0.0.0.0', port=80)
+    app.run()
